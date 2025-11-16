@@ -13,6 +13,11 @@ _教育データ × 機械学習 × EBPM × 推薦 × 運用サイクルの一�
 予測 → 提案 → クリックログ → ダッシュボード までを 1 つのアプリで完結
 「精度の高いモデル」だけでなく、「改善サイクルを回せる状態」を示すことが目的です
 
+## Problem → Approach →　Value
+- 教育現場ではデータが断片的・施策効果が教師の勘や経験になりがち 
+- 根拠のある施策・可視化された分析・サイクルで回る運用
+- 最小構成で ML / EBPM / CF 活用の価値を示した
+
 ## このデモで伝えたいこと
 - モデリング：Liner / LightGBM / SHAP で予測と解釈を両立
 - EBPM：t検定 / PSM / IPW / 回帰調整 で教育施策の効果を多面的に推定
@@ -20,9 +25,12 @@ _教育データ × 機械学習 × EBPM × 推薦 × 運用サイクルの一�
 - 運用：A/B テスト / CTR ログ / ダッシュボードで改善サイクルを設計
 
 **教育データから課題を見つけ、実装し、運用するところまで実装を再現したモデルです**
+**本デモは教育分野での分析経験を抽象化・可視化し、**
+**少量データでも実務の検証プロセスを再現できる形にまとめたものです**
+**特に、因果推論やモデル解釈の活用は、実務での課題感から着想しました**
 
 
-## 🏗 構成概要
+## 構成概要
 
 ```text
 app/
@@ -132,37 +140,36 @@ A/B コピー表示（学習提案）
 
 ## 技術スタック
 - 言語 / ライブラリ
-- Python
+- Python 3.10
 - Streamlit
-- scikit-learn / LightGBM
-- pandas / numpy
-- SHAP, statsmodels など
+- scikit-learn / LightGBM / statsmodels
+- pandas / numpy / scipy
+- SHAP
+- PSM / IPW / Precision/Recall@K（自作）
+- User-based CF / cosine similarity
+- GCP（Cloud Run / GCS)　ローカルでも動作可能
 
 ### インフラ想定
 - GCP Cloud Run（コンテナデプロイ）
 - BigQuery / Cloud Storage 連携
 
-### ローカル開発（例）
-
-※ 実際のバージョンやコマンドは環境に合わせて調整してください。
-
-# 仮想環境作成
+## 仮想環境作成
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows の場合: .venv\Scripts\activate
 ```
 
-# 依存パッケージインストール
+## 依存パッケージインストール
 ```bash
 pip install -r requirements.txt
 ```
 
-# Streamlit 起動
+## Streamlit 起動
 ```bash
 streamlit run app/app.py
 ```
 
-# Cloud Run デプロイ（例）
+## Cloud Run デプロイ（例）
 ```bash
 gcloud builds submit --tag gcr.io/PROJECT_ID/edu-ml-demo
 gcloud run deploy edu-ml-demo \
