@@ -16,7 +16,7 @@ from google.cloud import bigquery
 st.title("EBPM：t検定 / PSM / IPW / 回帰調整")
 
 # 共通ヘッダ
-st.caption("**Problem → Hypothesis → Metric**：施策は成績を改善する？ → 交絡を統制すれば差が縮退しつつ有意性は保たれるはず → ATE とバランス指標（SMD）で確認")
+st.caption("**Problem → Hypothesis → Metric**：施策は成績を改善する？ → 交絡を統制すれば差が縮退しつつ有意性は保たれるはず → ATT / ATE とバランス指標（SMD）で確認")
 st.markdown(f"[APIドキュメント（FastAPI /docs）（準備中）]({API_DOCS_URL})")
 st.caption("出典：公開データ（BigQuery）or模したダミー。PIIなし。デモ用途。")
 
@@ -157,8 +157,8 @@ matched = pd.concat([df.iloc[matched_t_idx], df.iloc[matched_c_idx]], ignore_ind
 ps_matched_t = ps[matched_t_idx]
 ps_matched_c = ps[matched_c_idx]
 
-# PSM ATE
-psm_ate = matched.loc[matched.treat==1,"y"].mean() - matched.loc[matched.treat==0,"y"].mean()
+# PSM ATT
+psm_att = matched.loc[matched.treat==1,"y"].mean() - matched.loc[matched.treat==0,"y"].mean()
 
 # IPW
 y_t = ( (df.loc[df.treat==1,"y"]/ps[df.treat==1]).sum() / (1/ps[df.treat==1]).sum() )
@@ -187,7 +187,7 @@ after = {
 # ====================== 表示 ======================
 c1,c2,c3,c4 = st.columns(4)
 c1.metric("t検定：平均差", f"{diff_in_means:.2f}", help=f"t={t_stat:.2f}, p={pval:.3g}")
-c2.metric("PSM：ATE", f"{psm_ate:.2f}")
+c2.metric("PSM：ATT", f"{psm_att:.2f}")
 c3.metric("IPW：ATE", f"{ipw_ate:.2f}")
 c4.metric("回帰調整：ATE(係数)", f"{reg_ate:.2f}")
 
@@ -213,8 +213,8 @@ ax2.set_xlabel("Propensity score"); ax2.set_ylabel("Count"); ax2.legend()
 st.pyplot(fig2); plt.close(fig2)
 
 st.subheader("効果推定の比較")
-effect_labels = ["Diff-in-Means (t-test)", "PSM ATE", "IPW ATE", "Regression Adj. ATE"]
-effect_values = [diff_in_means, psm_ate, ipw_ate, reg_ate]
+effect_labels = ["Diff-in-Means (t-test)", "PSM ATT", "IPW ATE", "Regression Adj. ATE"]
+effect_values = [diff_in_means, psm_att, ipw_ate, reg_ate]
 fig3, ax3 = plt.subplots()
 ax3.bar(range(len(effect_values)), effect_values)
 ax3.set_xticks(range(len(effect_values)))
