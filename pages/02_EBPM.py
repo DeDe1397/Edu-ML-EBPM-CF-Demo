@@ -36,6 +36,30 @@ def load_students_performance_from_local(path: str) -> pd.DataFrame:
     return dfq
 
 
+@st.cache_data(show_spinner=False)
+def generate_dummy_students_performance(n: int = 1000) -> pd.DataFrame:
+    """
+    data/StudentsPerformance.csv が無い環境（デプロイ先等）向けの代替データ。
+    Kaggle「Students Performance in Exams」と同じ列構成・似た傾向の合成データを生成する。
+    """
+    rng = np.random.default_rng(42)
+    test_prep = rng.choice(["none", "completed"], size=n, p=[0.64, 0.36])
+    prep_bonus = np.where(test_prep == "completed", 6.0, 0.0)
+
+    reading = np.clip(rng.normal(69, 14, n) + prep_bonus * 0.5, 0, 100)
+    writing = np.clip(reading + rng.normal(0, 6, n) + prep_bonus * 0.5, 0, 100)
+    math = np.clip(
+        0.5 * reading + 0.3 * writing + prep_bonus + rng.normal(0, 8, n), 0, 100
+    )
+
+    return pd.DataFrame({
+        "test preparation course": test_prep,
+        "reading score": reading,
+        "writing score": writing,
+        "math score": math,
+    })
+
+
 # ====================== データ選択 ======================
 st.subheader("分析データの選択")
 
@@ -49,19 +73,20 @@ st.caption("ローカルCSVのみで完結する構成です（クラウド接�
 
 df = None
 if mode.startswith("①"):
-    st.info(f"公開データ（StudentsPerformanceInExams）は `{LOCAL_DEMO_CSV}` から読み込んでいます。")
-    if not os.path.exists(LOCAL_DEMO_CSV):
-        st.error(
-            f"`{LOCAL_DEMO_CSV}` が見つかりません。Kaggle「Students Performance in Exams」"
-            "のCSVをダウンロードして配置してください。"
+    if os.path.exists(LOCAL_DEMO_CSV):
+        st.info(f"公開データ（StudentsPerformanceInExams）を `{LOCAL_DEMO_CSV}` から読み込んでいます。")
+        try:
+            df_raw = load_students_performance_from_local(LOCAL_DEMO_CSV)
+        except Exception as e:
+            st.error(f"CSV読み込みに失敗: {e}")
+            st.stop()
+    else:
+        st.info(
+            f"`{LOCAL_DEMO_CSV}` が無いため、同じ列構成の合成デモデータを自動生成しています。"
+            "本物のKaggle CSVを配置すれば、そちらが自動的に優先されます。"
             "（https://www.kaggle.com/datasets/spscientist/students-performance-in-exams）"
         )
-        st.stop()
-    try:
-        df_raw = load_students_performance_from_local(LOCAL_DEMO_CSV)
-    except Exception as e:
-        st.error(f"CSV読み込みに失敗: {e}")
-        st.stop()
+        df_raw = generate_dummy_students_performance()
 
     # treat=補習受講（completed=1）, motivation=reading score, baseline=writing score, y=math score
     df = pd.DataFrame({
