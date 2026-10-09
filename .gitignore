@@ -22,10 +22,8 @@ env/
 events.csv
 *.log
 
-# モデル・学習成果物（本番はGCS/GCSから読み込む前提）
-*.pkl
-artefacts/
-models/
+# 生データ（Kaggleデータセットはライセンス上、同梱せず各自ダウンロード）
+data/*.csv
 
 # 環境変数・秘密情報
 .env

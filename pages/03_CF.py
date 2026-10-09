@@ -1,7 +1,6 @@
 import numpy as np, pandas as pd, streamlit as st
 from sklearn.metrics.pairwise import cosine_similarity
 from modules.metrics import precision_at_k, recall_at_k
-from modules.config import API_DOCS_URL
 
 st.title("推薦：User-based CF と Precision/Recall@K")
 
@@ -10,7 +9,6 @@ st.caption(
     "**Problem → Hypothesis → Metric**："
     "似たユーザーの嗜好からレコメンド → 近傍ユーザー数を調整すると精度が変わるはず → Precision/Recall@K（評価データ側）で確認"
 )
-st.markdown(f"[APIドキュメント（FastAPI /docs）（準備中）]({API_DOCS_URL})")
 st.caption("出典：デモ用のダミーレーティングデータ。PIIなし。")
 
 # =====================

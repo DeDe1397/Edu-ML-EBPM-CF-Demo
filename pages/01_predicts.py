@@ -15,7 +15,6 @@ from modules.model_io import (
 from modules.log_utils import assign_ab, log_event, load_events_df
 from modules.ab_texts import A_COPY, B_COPY
 from modules.metrics import rmse, r2
-from modules.config import API_DOCS_URL
 
 
 st.title("予測（Linear / LightGBM + SHAP）")
@@ -27,7 +26,6 @@ st.caption(
     "A/Bテスト（コピー比較）で行動が変わるなら改善余地あり → "
     "CTRと予測精度（RMSE・R²）で判断"
 )
-st.markdown(f"[APIドキュメント（FastAPI /docs）（準備中）]({API_DOCS_URL})")
 
 with st.expander("イベントログのスキーマ / 例"):
     st.code(

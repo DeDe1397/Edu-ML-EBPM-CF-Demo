@@ -1,14 +1,7 @@
 import streamlit as st
-from modules.config import API_DOCS_URL
 
 st.set_page_config(page_title="Edu ML / EBPM / CF Demo", layout="centered")
 st.title("教育データ × ML × EBPM × CF デモ")
-
-# APIドキュメントへのリンク（ある場合だけ表示）
-if API_DOCS_URL:
-    st.markdown(f"[APIドキュメント（FastAPI /docs）（準備中）]({API_DOCS_URL})")
-else:
-    st.caption("APIドキュメント（FastAPI /docs）は別途準備中です。")
 
 st.markdown("""
 **このデモで見せたい価値**

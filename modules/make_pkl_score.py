@@ -1,22 +1,30 @@
+import os
 import pandas as pd
 import numpy as np, json
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score, mean_squared_error
 import lightgbm as lgb
-import joblib, io
-from google.cloud import bigquery, storage
-from sklearn.metrics import mean_squared_error, r2_score
+import joblib
 
-# --- 設定値（あなたの環境に合わせて変更） ---
-PROJECT_ID = "your_project_ID"
-BQ_TABLE_PATH = f"{PROJECT_ID}.your_PATH"
-GCS_BUCKET_NAME = "your_gcs_bucket_name" 
+from config import MODEL_PATHS, FEATURE_PATH, LOCAL_ARTEFACT_DIR
 
-# --- 1. BigQueryからデータを読み込む ---
-client = bigquery.Client(project=PROJECT_ID)
-sql = f"SELECT * FROM `{BQ_TABLE_PATH}`"
-df = client.query(sql).to_dataframe()
+# --- 設定値 ---
+# Kaggle「Students Performance in Exams」のCSVをここに配置してください
+# https://www.kaggle.com/datasets/spscientist/students-performance-in-exams
+CSV_PATH = os.getenv("TRAIN_CSV_PATH", "data/StudentsPerformance.csv")
+
+# --- 1. ローカルCSVからデータを読み込む ---
+df = pd.read_csv(CSV_PATH)
+
+# 列名のスペースをアンダースコアに変換（race/ethnicityはスラッシュを維持）
+df = df.rename(columns={
+    "parental level of education": "parental_level_of_education",
+    "test preparation course": "test_preparation_course",
+    "math score": "math_score",
+    "reading score": "reading_score",
+    "writing score": "writing_score",
+})
 
 # --- 2. 特徴量と目的変数を定義 ---
 X = df.drop('math_score', axis=1)
@@ -35,8 +43,6 @@ categorical_cols = X_train.select_dtypes(include=['object']).columns
 X_train_encoded = pd.get_dummies(X_train, columns=categorical_cols, drop_first=True)
 X_test_encoded = pd.get_dummies(X_test, columns=categorical_cols, drop_first=True)
 final_columns = X_train_encoded.columns
-
-final_columns
 models = {}
 
 # --- 5. モデル学習と評価 ---
@@ -50,18 +56,15 @@ lgb_model.fit(X_train_encoded, y_train)
 lgb_pred = lgb_model.predict(X_test_encoded)
 models["LightGBM"] = lgb_model
 
-# --- 6. モデルと列情報とスコアを保存 ---
-storage_client = storage.Client(project=PROJECT_ID)
-bucket = storage_client.bucket(GCS_BUCKET_NAME)
-
+# --- 6. モデルと列情報とスコアをローカルに保存 ---
 for name, model in models.items():
-    joblib.dump(model, f"{name}.pkl")
-    blob = bucket.blob(f"models/math_predictor/v1/{name}.pkl")
-    blob.upload_from_filename(f"{name}.pkl")
+    local_path = os.path.join(LOCAL_ARTEFACT_DIR, MODEL_PATHS[name])
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+    joblib.dump(model, local_path)
 
-joblib.dump(list(final_columns), "feature_list.pkl")
-blob_list = bucket.blob(f"models/math_predictor/v1/feature_list.pkl")
-blob_list.upload_from_filename('feature_list.pkl')
+feature_local_path = os.path.join(LOCAL_ARTEFACT_DIR, FEATURE_PATH)
+os.makedirs(os.path.dirname(feature_local_path), exist_ok=True)
+joblib.dump(list(final_columns), feature_local_path)
 
 rmse_lr  = np.sqrt(mean_squared_error(y_test, lr_pred))
 r2_lr    = r2_score(y_test, lr_pred)
@@ -73,6 +76,9 @@ metrics = {
     "LightGBM":        {"rmse": float(rmse_lgb), "r2": float(r2_lgb)}
 }
 
-with open("metrics.json", "w", encoding="utf-8") as f:
+metrics_local_path = os.path.join(LOCAL_ARTEFACT_DIR, "models/math_predictor/v1/metrics.json")
+os.makedirs(os.path.dirname(metrics_local_path), exist_ok=True)
+with open(metrics_local_path, "w", encoding="utf-8") as f:
     json.dump(metrics, f, ensure_ascii=False)
-bucket.blob("models/math_predictor/v1/metrics.json").upload_from_filename("metrics.json")
+
+print(f"モデル・特徴量リスト・metricsを {LOCAL_ARTEFACT_DIR} に保存しました")

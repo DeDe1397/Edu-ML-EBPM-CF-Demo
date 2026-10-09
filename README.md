@@ -14,9 +14,6 @@ _教育データ × 機械学習 × EBPM × 推薦 × 運用サイクルの一�
 予測 → 提案 → クリックログ → ダッシュボード までを 1 つのアプリで完結
 「精度の高いモデル」だけでなく、「改善サイクルを回せる状態」を示すことが目的です
 
-## デモ
-https://edu-ml-app-dev-218616351259.asia-northeast1.run.app/
-
 ## Problem → Approach →　Value
 - 教育現場ではデータが断片的・施策効果が教師の勘や経験になりがち 
 - 根拠のある施策・可視化された分析・サイクルで回る運用
@@ -37,19 +34,19 @@ https://edu-ml-app-dev-218616351259.asia-northeast1.run.app/
 ## 構成概要
 
 ```text
-app/
-  app.py                      # ホーム（全体説明）
-  modules/
-    config.py                 # 設定（GCS 接続 / パス管理）
-    model_io.py               # モデル・特徴量・SHAP
-    metrics.py                # RMSE / R2 / Precision@K など
-    log_utils.py              # A/B テスト用ログ / イベント記録
-    ab_texts.py               # A/B テストで使うコピー文言
-  pages/
-    01_予測.py                 # 予測 + SHAP + A/B コピー + CTR 計測
-    02_EBPM.py                # t検定 / PSM / IPW / 回帰調整 による施策効果推定
-    03_推薦.py                # User-CF + Precision/Recall@K
-    99_運用ダッシュボード.py   # CTR・利用回数などの可視化
+app.py                         # ホーム（全体説明）
+modules/
+  config.py                    # 設定（ストレージ/ログ バックエンド切替・パス管理）
+  model_io.py                  # モデル・特徴量・SHAP
+  metrics.py                   # RMSE / R2 / Precision@K など
+  log_utils.py                 # A/B テスト用ログ / イベント記録
+  ab_texts.py                  # A/B テストで使うコピー文言
+  make_pkl_score.py            # ローカルCSVからのモデル学習スクリプト
+pages/
+  01_predicts.py                # 予測 + SHAP + A/B コピー + CTR 計測
+  02_EBPM.py                    # t検定 / PSM / IPW / 回帰調整 による施策効果推定
+  03_CF.py                      # User-CF + Precision/Recall@K
+  99_dashboard.py               # CTR・利用回数などの可視化
 
 ユーザー入力
     ↓
@@ -86,8 +83,8 @@ A/B コピー表示（学習提案）
 
 ### 概要
 - 教育施策の「効いている / 効いていない」を、できるだけ公平に評価するためのページです。
-- 実データは扱えないため、BigQuaryからKaggle公開データ(StudentsPerformanceInExams）を読み取る
-- あるいはデモCSVを読み込む構成にしています。
+- 実データは扱えないため、ローカルCSV（Kaggle公開データ StudentsPerformanceInExams）を読み取る
+- あるいは自前でアップロードしたCSVを読み込む構成にしています。
 
 ### 実装している手法
 - t検定
@@ -103,7 +100,7 @@ A/B コピー表示（学習提案）
 ### 狙い
 - 「ランダム化実験が難しい現場（学校・自治体） でどう分析するか」を示す
 
-## 03_推薦ページ：User-based CF + Precision/Recall@K
+## 03_CF（推薦）ページ：User-based CF + Precision/Recall@K
 
 ### 概要
 - ユーザー × アイテム行列から 類似ユーザー（cosine 類似度） を計算
@@ -124,7 +121,7 @@ A/B コピー表示（学習提案）
 - 基礎的なレコメンドの実装
 - 教育データでどう活用するか指針にしたい
 
-## 99_運用ダッシュボード：KPI 可視化
+## 99_dashboard（運用ダッシュボード）：KPI 可視化
 
 ### 概要
 このページでは、アプリ内部（predictsページ）で記録したログを元に簡易ダッシュボードを表示します。
@@ -151,11 +148,11 @@ A/B コピー表示（学習提案）
 - SHAP
 - PSM / IPW / Precision/Recall@K（自作）
 - User-based CF / cosine similarity
-- GCP（Cloud Run / GCS)　ローカルでも動作可能
+- Streamlit 単体で動作（外部クラウド接続は不要）
 
 ### インフラ想定
-- GCP Cloud Run（コンテナデプロイ）
-- BigQuery / Cloud Storage 連携
+- Streamlit Community Cloud、またはDockerでの自前ホスティング
+- GCS / BigQuery 連携は `STORAGE_BACKEND=gcs` / `LOG_BACKEND=gcs` に切り替えれば任意で利用可能（オプション）
 
 ## 仮想環境作成
 ```bash
@@ -168,22 +165,31 @@ source .venv/bin/activate  # Windows の場合: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+## 学習データの準備とモデル生成
+1. Kaggle「Students Performance in Exams」のCSVをダウンロードし、`data/StudentsPerformance.csv` に配置
+   （https://www.kaggle.com/datasets/spscientist/students-performance-in-exams）
+2. モデルを生成（リポジトリルートから実行。`artefacts/` にモデル・特徴量リスト・metricsが出力されます）
+   ```bash
+   python modules/make_pkl_score.py
+   ```
+
 ## Streamlit 起動
 ```bash
-streamlit run app/app.py
+streamlit run app.py
 ```
 
-## Cloud Run デプロイ（例）
+## Dockerでの実行
 ```bash
-gcloud builds submit --tag gcr.io/PROJECT_ID/edu-ml-demo
-gcloud run deploy edu-ml-demo \
-  --image gcr.io/PROJECT_ID/edu-ml-demo \
-  --platform managed \
-  --region asia-northeast1 \
-  --allow-unauthenticated
+docker build -t edu-ml-ebpm-cf-demo .
+docker run -p 8080:8080 edu-ml-ebpm-cf-demo
 ```
+
+## Streamlit Community Cloudへのデプロイ
+1. 本リポジトリをGitHubにpush（`artefacts/` にモデルファイルを含めること）
+2. [share.streamlit.io](https://share.streamlit.io/) でリポジトリを連携
+3. Main file path に `app.py` を指定してデプロイ
 
 ## 注意事項
-- 学習済みモデルの非公開: 学習済みモデルファイル（LinearRegression.pkl, LightGBM.pkl, および feature_list.pkl）は、機密保持に従い、GitHub上では公開していません。
-- データの前処理: BigQueryなどの環境で問題が発生しないよう、コード内では列名のスペースをアンダースコア (_) に変換する処理を行っています。
-- PROJECT_IDなどはご自身の環境に応じて入力をしてください。
+- データの前処理: 列名のスペースをアンダースコア (_) に変換する処理を行っています（`race/ethnicity` はスラッシュのまま）。
+- 生データ非公開: Kaggleデータセットはライセンス上、CSV自体はリポジトリに同梱していません（`.gitignore` で除外）。各自ダウンロードして配置してください。
+- GCS/BigQueryは任意オプションです。使う場合は `STORAGE_BACKEND=gcs` などの環境変数を設定し、`google-cloud-storage` / `google-cloud-bigquery` を追加インストールしてください。

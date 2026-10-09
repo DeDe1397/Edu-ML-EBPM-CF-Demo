@@ -9,58 +9,31 @@ from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import NearestNeighbors
 
-from modules.config import API_DOCS_URL
-from google.cloud import bigquery
-
+LOCAL_DEMO_CSV = os.path.join("data", "StudentsPerformance.csv")
 
 st.title("EBPM：t検定 / PSM / IPW / 回帰調整")
 
 # 共通ヘッダ
 st.caption("**Problem → Hypothesis → Metric**：施策は成績を改善する？ → 交絡を統制すれば差が縮退しつつ有意性は保たれるはず → ATT / ATE とバランス指標（SMD）で確認")
-st.markdown(f"[APIドキュメント（FastAPI /docs）（準備中）]({API_DOCS_URL})")
-st.caption("出典：公開データ（BigQuery）or模したダミー。PIIなし。デモ用途。")
+st.caption("出典：公開データ（ローカルCSV）or模したダミー。PIIなし。デモ用途。")
 
-# ========= BigQuery =========
-PROJECT_ID_DEFAULT = "your_PROJECT_ID_DEFAULT"
-BQ_TABLE_DEFAULT = f"{PROJECT_ID_DEFAULT}.your_PATH"
 
-@st.cache_data(show_spinner=False, ttl=600)
-def load_students_performance_from_bq() -> tuple[pd.DataFrame, str]:
+@st.cache_data(show_spinner=False)
+def load_students_performance_from_local(path: str) -> pd.DataFrame:
     """
-    BigQueryから StudentsPerformance を取得。
-    期待列（BQ側）: test_preparation_course, reading_score, writing_score, math_score
-    戻り値 df_raw は既存処理と合わせるため、スペース入り名にrenameして返却。
+    ローカルCSV（Kaggle: Students Performance in Exams）から読み込む。
+    期待列: test preparation course, reading score, writing score, math score
     """
-    bq_table = os.getenv("BQ_TABLE_PATH", BQ_TABLE_DEFAULT)
-    gcp_project = os.getenv("GCP_PROJECT", PROJECT_ID_DEFAULT)
-
-    client = bigquery.Client(project=gcp_project)
-    query = f"""
-    SELECT
-      CAST(test_preparation_course AS STRING) AS test_preparation_course,
-      CAST(reading_score AS FLOAT64)         AS reading_score,
-      CAST(writing_score AS FLOAT64)         AS writing_score,
-      CAST(math_score    AS FLOAT64)         AS math_score
-    FROM `{bq_table}`
-    """
-    dfq = client.query(query).result().to_dataframe()
-
-    df_raw = dfq.rename(columns={
-        "test_preparation_course": "test preparation course",
-        "reading_score": "reading score",
-        "writing_score": "writing score",
-        "math_score": "math score",
-    })
+    dfq = pd.read_csv(path)
+    need = {"test preparation course", "reading score", "writing score", "math score"}
+    miss = need - set(dfq.columns)
+    if miss:
+        raise ValueError(f"CSVに必要な列が不足: {miss}")
 
     for c in ["reading score", "writing score", "math score"]:
-        df_raw[c] = pd.to_numeric(df_raw[c], errors="coerce")
+        dfq[c] = pd.to_numeric(dfq[c], errors="coerce")
 
-    need = {"test preparation course","reading score","writing score","math score"}
-    miss = need - set(df_raw.columns)
-    if miss:
-        raise ValueError(f"BigQueryテーブルに必要な列が不足: {miss}")
-
-    return df_raw, bq_table
+    return dfq
 
 
 # ====================== データ選択 ======================
@@ -68,22 +41,26 @@ st.subheader("分析データの選択")
 
 mode = st.radio(
     "データソースを選択",
-    ["① 公開データ（BigQuery）", "② CSVアップロード"],
+    ["① 公開データ（ローカルCSV）", "② CSVアップロード"],
     index=0,
     horizontal=True
 )
-st.caption(
-    "ローカルCSVのみで完結する構成にしつつ、"
-    "クラウド環境があれば同じ分析をBigQueryテーブルからも実行できるようにしています。"
-)
+st.caption("ローカルCSVのみで完結する構成です（クラウド接続は不要）。")
 
 df = None
 if mode.startswith("①"):
-    st.info("公開データ（StudentsPerformanceInExams）は BigQuery から読み込んでいます。")
+    st.info(f"公開データ（StudentsPerformanceInExams）は `{LOCAL_DEMO_CSV}` から読み込んでいます。")
+    if not os.path.exists(LOCAL_DEMO_CSV):
+        st.error(
+            f"`{LOCAL_DEMO_CSV}` が見つかりません。Kaggle「Students Performance in Exams」"
+            "のCSVをダウンロードして配置してください。"
+            "（https://www.kaggle.com/datasets/spscientist/students-performance-in-exams）"
+        )
+        st.stop()
     try:
-        df_raw, src_table = load_students_performance_from_bq()
+        df_raw = load_students_performance_from_local(LOCAL_DEMO_CSV)
     except Exception as e:
-        st.error(f"BigQuery読み込みに失敗: {e}")
+        st.error(f"CSV読み込みに失敗: {e}")
         st.stop()
 
     # treat=補習受講（completed=1）, motivation=reading score, baseline=writing score, y=math score
@@ -94,7 +71,7 @@ if mode.startswith("①"):
         "y":          df_raw["math score"],
     }).dropna(subset=["motivation","baseline","y"])
 
-else:  
+else:
     st.info("アップロードCSVを使う場合は、必ず `treat`, `motivation`, `baseline`, `y` の4列を含めてください。（y が無い場合はデモ用に自動生成）")
     file = st.file_uploader("CSVファイルを選択", type=["csv"])
     if file is not None:

@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # アプリ本体
 COPY . /app
 
-# Streamlit のCloud Run向け設定
+# Streamlit サーバー設定
 ENV PORT=8080 \
     PYTHONUNBUFFERED=1 \
     STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
